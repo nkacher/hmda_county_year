@@ -1,0 +1,781 @@
+***** HMDA mortgage affordability by age *****
+*Author: Nicholas Kacher
+
+*Contents: (1) data setup (2) county controls (3) US analysis (4) regional analysis
+
+clear all
+set more off 
+cd "/Users/nkacher/Desktop/HMDA_age"
+
+
+*Source: https://ffiec.cfpb.gov/data-browser/data/2018?category=nationwide
+*Options: 2018, natiowide => dowload
+*Options: 2019, natiowide => dowload
+*Options: 2020, natiowide => dowload
+*Options: 2021, natiowide => dowload
+*All .dta files publicly available
+
+*Data dictionary: https://ffiec.cfpb.gov/documentation/2018/lar-data-fields/
+
+********************************
+*** 1. Data Setup ***
+********************************
+
+import delimited raw_data/year_2018.csv, encoding(ISO-8859-1)clear
+save raw_data/year_2018
+
+*Keeping only accepted applicaitons
+keep if action_taken == 1
+
+*Keeping only single-family homes
+keep if derived_dwelling_category == "Single Family (1-4 Units):Site-Built"
+
+*Keeping only loan for home purchases (excluding refi, home improvement, etc.)
+keep if loan_purpose == 1
+
+*Dropping reverse mortgages
+drop if reverse_mortgage == 1
+
+*Dropping business/commercial purchases
+drop if business_or_commercial_purpose == 1
+
+*Keeping only principal residences
+keep if occupancy_type == 1
+
+** Destringing variables
+destring county_code, gen(county)
+destring interest_rate loan_term property_value income, replace force
+
+** Keeping only relevant variables
+keep county loan_amount interest_rate loan_term property_value income applicant_age activity_year
+
+* Scaling income to $ rather than $1000 to line up with property value and loan amount
+replace income = income*1000
+
+rename activity_year year
+
+** Labels
+la var loan_amount "Loan Amount ($)"
+la var interest_rate "Interest Rate (%)"
+la var loan_term "Loan Term (Months)"
+la var property_value "Property Value ($)"
+la var income "Household Income ($)"
+la var applicant_age "Applicant Age Range (string)"
+
+** Indicator variables for applicant over/under age 35 & under 45
+gen age_under35 =1 if applicant_age == "<25" | applicant_age == "25-34"
+la var age_under35 "1 if applicant_age <35"
+replace age_under35 =0 if applicant_age == "35-44" | applicant_age == "45-54" | applicant_age == "55-64" | applicant_age == "65-74" | applicant_age == ">74"
+
+gen age_35plus =1 if applicant_age == "35-44" | applicant_age == "45-54" | applicant_age == "55-64" | applicant_age == "65-74" | applicant_age == ">74"
+la var age_35plus "1 if applicant_age <35"
+
+gen age_under45 =1 if applicant_age == "<25" | applicant_age == "25-34" | applicant_age == "35-34"
+replace age_under45=0 if applicant_age == "45-54" | applicant_age == "55-64" | applicant_age == "65-74" | applicant_age == ">74"
+
+la var age_under35 "1 if applicant_age <45"
+
+
+
+** Estimated monthly payment, based on loan amount, interest, and loan term
+destring interest_rate, replace force
+destring loan_term, replace force
+gen monthly_interest_rate = interest_rate/100/12
+gen monthly_payment = loan_amount*((monthly_interest_rate*(1+monthly_interest_rate)^loan_term))/((1+monthly_interest_rate)^loan_term-1)
+gen monthly_income = income/12
+gen monthly_payment_share =  monthly_payment / monthly_income
+
+la var monthly_payment "Estimated montly mortgage payment ($)"
+la var monthly_interest_rate "Interest rate (decimal) divided by 12, used to calculate monthly payment"
+la var monthly_income "Income / 12 ($)"
+la var monthly_payment_share "Ratio of monthly income to estimated monthly mortgage payment"
+
+** Dropping outliers
+drop if monthly_payment_share>1 | monthly_payment_share<0
+
+save derived_data/HMDA_US2018_clean
+clear
+
+
+
+import delimited raw_data/year_2019.csv, encoding(ISO-8859-1)clear
+save raw_data/year_2019
+
+*Keeping only accepted applicaitons
+keep if action_taken == 1
+
+*Keeping only single-family homes
+keep if derived_dwelling_category == "Single Family (1-4 Units):Site-Built"
+
+*Keeping only loan for home purchases (excluding refi, home improvement, etc.)
+keep if loan_purpose == 1
+
+*Dropping reverse mortgages
+drop if reverse_mortgage == 1
+
+*Dropping business/commercial purchases
+drop if business_or_commercial_purpose == 1
+
+*Keeping only principal residences
+keep if occupancy_type == 1
+
+** Destringing variables
+destring county_code, gen(county)
+destring interest_rate loan_term property_value income, replace force
+
+** Keeping only relevant variables
+keep county loan_amount interest_rate loan_term property_value income applicant_age activity_year
+
+* Scaling income to $ rather than $1000 to line up with property value and loan amount
+replace income = income*1000
+
+rename activity_year year
+
+** Labels
+la var loan_amount "Loan Amount ($)"
+la var interest_rate "Interest Rate (%)"
+la var loan_term "Loan Term (Months)"
+la var property_value "Property Value ($)"
+la var income "Household Income ($)"
+la var applicant_age "Applicant Age Range (string)"
+
+** Indicator variables for applicant over/under age 35
+** Indicator variables for applicant over/under age 35 & under 45
+gen age_under35 =1 if applicant_age == "<25" | applicant_age == "25-34"
+la var age_under35 "1 if applicant_age <35"
+replace age_under35 =0 if applicant_age == "35-44" | applicant_age == "45-54" | applicant_age == "55-64" | applicant_age == "65-74" | applicant_age == ">74"
+
+gen age_35plus =1 if applicant_age == "35-44" | applicant_age == "45-54" | applicant_age == "55-64" | applicant_age == "65-74" | applicant_age == ">74"
+la var age_35plus "1 if applicant_age <35"
+
+gen age_under45 =1 if applicant_age == "<25" | applicant_age == "25-34" | applicant_age == "35-34"
+replace age_under45=0 if applicant_age == "45-54" | applicant_age == "55-64" | applicant_age == "65-74" | applicant_age == ">74"
+
+la var age_under35 "1 if applicant_age <45"
+
+** Estimated monthly payment, based on loan amount, interest, and loan term
+destring interest_rate, replace force
+destring loan_term, replace force
+gen monthly_interest_rate = interest_rate/100/12
+gen monthly_payment = loan_amount*((monthly_interest_rate*(1+monthly_interest_rate)^loan_term))/((1+monthly_interest_rate)^loan_term-1)
+gen monthly_income = income/12
+gen monthly_payment_share =  monthly_payment / monthly_income
+
+la var monthly_payment "Estimated montly mortgage payment ($)"
+la var monthly_interest_rate "Interest rate (decimal) divided by 12, used to calculate monthly payment"
+la var monthly_income "Income / 12 ($)"
+la var monthly_payment_share "Ratio of monthly income to estimated monthly mortgage payment"
+
+** Dropping outliers
+drop if monthly_payment_share>1 | monthly_payment_share<0
+
+save derived_data/HMDA_US2019_clean
+clear
+
+
+
+import delimited raw_data/year_2020.csv, encoding(ISO-8859-1)clear
+save raw_data/year_2020
+
+*Keeping only accepted applicaitons
+keep if action_taken == 1
+
+*Keeping only single-family homes
+keep if derived_dwelling_category == "Single Family (1-4 Units):Site-Built"
+
+*Keeping only loan for home purchases (excluding refi, home improvement, etc.)
+keep if loan_purpose == 1
+
+*Dropping reverse mortgages
+drop if reverse_mortgage == 1
+
+*Dropping business/commercial purchases
+drop if business_or_commercial_purpose == 1
+
+*Keeping only principal residences
+keep if occupancy_type == 1
+
+** Destringing variables
+destring county_code, gen(county)
+destring interest_rate loan_term property_value income, replace force
+
+** Keeping only relevant variables
+keep county loan_amount interest_rate loan_term property_value income applicant_age activity_year
+
+* Scaling income to $ rather than $1000 to line up with property value and loan amount
+replace income = income*1000
+
+rename activity_year year
+
+** Labels
+la var loan_amount "Loan Amount ($)"
+la var interest_rate "Interest Rate (%)"
+la var loan_term "Loan Term (Months)"
+la var property_value "Property Value ($)"
+la var income "Household Income ($)"
+la var applicant_age "Applicant Age Range (string)"
+
+** Indicator variables for applicant over/under age 35 & under 45
+gen age_under35 =1 if applicant_age == "<25" | applicant_age == "25-34"
+la var age_under35 "1 if applicant_age <35"
+replace age_under35 =0 if applicant_age == "35-44" | applicant_age == "45-54" | applicant_age == "55-64" | applicant_age == "65-74" | applicant_age == ">74"
+
+gen age_35plus =1 if applicant_age == "35-44" | applicant_age == "45-54" | applicant_age == "55-64" | applicant_age == "65-74" | applicant_age == ">74"
+la var age_35plus "1 if applicant_age <35"
+
+gen age_under45 =1 if applicant_age == "<25" | applicant_age == "25-34" | applicant_age == "35-34"
+replace age_under45=0 if applicant_age == "45-54" | applicant_age == "55-64" | applicant_age == "65-74" | applicant_age == ">74"
+
+la var age_under35 "1 if applicant_age <45"
+
+** Estimated monthly payment, based on loan amount, interest, and loan term
+destring interest_rate, replace force
+destring loan_term, replace force
+gen monthly_interest_rate = interest_rate/100/12
+gen monthly_payment = loan_amount*((monthly_interest_rate*(1+monthly_interest_rate)^loan_term))/((1+monthly_interest_rate)^loan_term-1)
+gen monthly_income = income/12
+gen monthly_payment_share =  monthly_payment / monthly_income
+
+la var monthly_payment "Estimated montly mortgage payment ($)"
+la var monthly_interest_rate "Interest rate (decimal) divided by 12, used to calculate monthly payment"
+la var monthly_income "Income / 12 ($)"
+la var monthly_payment_share "Ratio of monthly income to estimated monthly mortgage payment"
+
+** Dropping outliers
+drop if monthly_payment_share>1 | monthly_payment_share<0
+
+save derived_data/HMDA_US2020_clean
+clear
+
+
+
+
+import delimited raw_data/year_2021.csv, encoding(ISO-8859-1)clear
+save raw_data/year_2021
+
+*Keeping only accepted applicaitons
+keep if action_taken == 1
+
+*Keeping only single-family homes
+keep if derived_dwelling_category == "Single Family (1-4 Units):Site-Built"
+
+*Keeping only loan for home purchases (excluding refi, home improvement, etc.)
+keep if loan_purpose == 1
+
+*Dropping reverse mortgages
+drop if reverse_mortgage == 1
+
+*Dropping business/commercial purchases
+drop if business_or_commercial_purpose == 1
+
+*Keeping only principal residences
+keep if occupancy_type == 1
+
+** Destringing variables
+destring county_code, gen(county)
+destring interest_rate loan_term property_value income, replace force
+
+** Keeping only relevant variables
+keep county loan_amount interest_rate loan_term property_value income applicant_age activity_year
+
+* Scaling income to $ rather than $1000 to line up with property value and loan amount
+replace income = income*1000
+
+rename activity_year year
+
+** Labels
+la var loan_amount "Loan Amount ($)"
+la var interest_rate "Interest Rate (%)"
+la var loan_term "Loan Term (Months)"
+la var property_value "Property Value ($)"
+la var income "Household Income ($)"
+la var applicant_age "Applicant Age Range (string)"
+
+** Indicator variables for applicant over/under age 35
+** Indicator variables for applicant over/under age 35 & under 45
+gen age_under35 =1 if applicant_age == "<25" | applicant_age == "25-34"
+la var age_under35 "1 if applicant_age <35"
+replace age_under35 =0 if applicant_age == "35-44" | applicant_age == "45-54" | applicant_age == "55-64" | applicant_age == "65-74" | applicant_age == ">74"
+
+gen age_35plus =1 if applicant_age == "35-44" | applicant_age == "45-54" | applicant_age == "55-64" | applicant_age == "65-74" | applicant_age == ">74"
+la var age_35plus "1 if applicant_age <35"
+
+gen age_under45 =1 if applicant_age == "<25" | applicant_age == "25-34" | applicant_age == "35-34"
+replace age_under45=0 if applicant_age == "45-54" | applicant_age == "55-64" | applicant_age == "65-74" | applicant_age == ">74"
+
+la var age_under35 "1 if applicant_age <45"
+
+** Estimated monthly payment, based on loan amount, interest, and loan term
+destring interest_rate, replace force
+destring loan_term, replace force
+gen monthly_interest_rate = interest_rate/100/12
+gen monthly_payment = loan_amount*((monthly_interest_rate*(1+monthly_interest_rate)^loan_term))/((1+monthly_interest_rate)^loan_term-1)
+gen monthly_income = income/12
+gen monthly_payment_share =  monthly_payment / monthly_income
+
+la var monthly_payment "Estimated montly mortgage payment ($)"
+la var monthly_interest_rate "Interest rate (decimal) divided by 12, used to calculate monthly payment"
+la var monthly_income "Income / 12 ($)"
+la var monthly_payment_share "Ratio of monthly income to estimated monthly mortgage payment"
+
+** Dropping outliers
+drop if monthly_payment_share>1 | monthly_payment_share<0
+
+save derived_data/HMDA_US2021_clean
+clear
+
+
+use derived_data/HMDA_US2018_clean
+append using derived_data/HMDA_US2019_clean
+append using derived_data/HMDA_US2020_clean
+append using derived_data/HMDA_US2021_clean
+
+save derived_data/MHDA_US_no_controls
+
+
+********************************
+*** 2. County Controls ***
+********************************
+
+destring county_code, gen(county) force
+
+* USDA RUCC: https://www.ers.usda.gov/data-products/rural-urban-continuum-codes.aspx - 2013 Rural Urban Continuum Codes
+import excel "/Users/nkacher/Desktop/HMDA_age/raw_data/ruralurbancodes2013.xls", sheet("Rural-urban Continuum Code 2013") firstrow
+destring FIPS, gen(county) force
+drop if missing(county)
+rename RUCC_2013 rucc
+save raw_data/rucc
+clear
+
+* BEA personal income per capita: https://apps.bea.gov/iTable/iTable.cfm?reqid=70&step=1&isuri=1&acrdn=6#reqid=70&step=1&isuri=1&acrdn=6, CAINC1 2018-2020
+import excel "/Users/nkacher/Desktop/HMDA_age/raw_data/BEA_CAINC1.xls", sheet("Sheet0") cellrange(A6:E3165) firstrow
+rename C inc_pc2018
+rename D inc_pc2019
+rename E inc_pc2020
+destring GeoFips, gen(county) force
+destring inc*, replace force
+drop if missing(county)
+gen inc_pc_mean = (inc_pc2018+inc_pc2019+inc_pc2020)/3
+save raw_data/BEA_CAINC1, replace
+
+* Wharton Residential Land Use Regulation Index: http://www.jonathanhartley.net/data
+use raw_data/WRLURI_01_15_2020
+gen countycode_str  = string(countycode18,"%03.0f")
+gen fips_str= statecode_str+ countycode_str
+destring fips_str, gen(county)
+collapse (mean) WRLURI18 if metro18==1 [aweight= weight_metro], by(county)
+drop if county<1000
+save derived_data/WRLURI_county
+clear
+
+* USDA natural ammenity scale: https://www.ers.usda.gov/data-products/natural-amenities-scale/
+import excel "/Users/nkacher/Desktop/HMDA_age/raw_data/USDA_natam.xlsx", sheet("NATAMENF") cellrange(A105:V3216) firstrow
+destring FIPSCode, gen(county)
+rename Scale natam_scale
+rename Low7High natam_rank
+drop FIPSCode formeasures STATE Countyname Division F G January194170 I July194170 K topographycode Waterarea Waterarea100
+save derived_data/USDA_natam
+clear
+
+* Democrat share in 2016 and 2020 elections: https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/VOQCHQ
+import delimited raw_data/countypres_2000-2020.csv, encoding(ISO-8859-1)clear
+rename county_fips county
+gen party_share = candidatevotes/totalvotes
+gen dem_share = party_share if party=="DEMOCRAT"
+keep if party=="DEMOCRAT"
+drop if missing(county)
+save derived_data/dem_share_full, replace
+
+keep if year==2016
+rename dem_share dem_share2016
+la var dem_share2016 "Share of Voters who Voted for the Democratic Presidential Nominee, 2016"
+keep county dem_share2016
+save derived_data/dem_share2016, replace
+clear
+
+use derived_data/dem_share_full
+keep if year==2020
+rename dem_share dem_share2020
+la var dem_share2020 "Share of Voters who Voted for the Democratic Presidential Nominee, 2020"
+keep county dem_share2020
+drop if missing(county)
+duplicates drop
+save derived_data/dem_share2020, replace
+clear
+
+* Merging
+use derived_data/MHDA_US_no_controls
+merge m:1 county using raw_data/rucc, gen(_merge_rucc)
+merge m:1 county using raw_data/BEA_CAINC1, gen(_merge_bea)
+merge m:1 county using derived_data/WRLURI_county, gen(_merge_WRLURI)
+merge m:1 county using derived_data/USDA_natam, gen(_merge_USDA)
+merge m:1 county using derived_data/USDA_natam, gen(_merge_USDA)
+merge m:1 county using derived_data/dem_share2016, gen(_merge_dem_share2016)
+merge m:1 county using derived_data/dem_share2020, gen(_merge_dem_share2020)
+
+
+drop State GeoName GeoFips FIPS Description County_Name
+
+* Creating new variables
+
+gen metro=1 if RUCC_2013<=3
+replace metro=0 if RUCC_2013>3
+
+gen inc_buyer_to_county18 = income / inc_pc2018 if year==2018
+gen inc_buyer_to_county19 = income / inc_pc2019 if year==2019
+gen inc_buyer_to_county20 = income / inc_pc2020 if year==2020
+*gen inc_buyer_to_county21 = income / inc_pc2021 if year==2021
+gen inc_buyer_to_county = inc_buyer_to_county18
+replace inc_buyer_to_county = inc_buyer_to_county19 if missing(inc_buyer_to_county)
+replace inc_buyer_to_county = inc_buyer_to_county20 if missing(inc_buyer_to_county)
+
+save derived_data/MHDA_US_full, replace
+
+
+********************************
+*** 3. US Analysis ***
+********************************
+
+* Part 1: Monthly payment shares by age, metro, and year
+
+sum monthly_payment_share if age_under35==1, detail
+sum monthly_payment_share if age_under35==0, detail
+
+sum monthly_payment_share if age_under35==1 & metro==1, detail
+sum monthly_payment_share if age_under35==1 & metro==0, detail
+
+sum monthly_payment_share if age_under35==0 & metro==1, detail
+sum monthly_payment_share if age_under35==0 & metro==0, detail
+
+binscatter monthly_payment_share year, line(connect)
+
+gen age_by_metro = 1 if age_under35==1 & metro==1
+replace age_by_metro = 2 if age_under35==1 & metro==0
+replace age_by_metro = 3 if age_under35==0 & metro==1
+replace age_by_metro = 4 if age_under35==0 & metro==0
+la var age_by_metro "1: u35, metro; 2: u35, nonmetro; 3: 35+, metro; 4: 35+, nonmetro"
+
+binscatter monthly_payment_share year, by(age_by_metro) line(connect)
+
+
+* Part 2: Buyers' to county income
+
+sort inc_buyer_to_county
+
+by age_by_metro: sum inc_buyer_to_county
+
+save derived_data/MHDA_US_full, replace
+clear
+
+
+********************************
+*** 4. Regional Analysis ***
+********************************
+
+** First, summary stats of individual values
+
+* Part 1: Share of buyers by age range
+
+use derived_data/MHDA_US_full
+
+collapse (mean) age_under35, by(county)
+drop if missing(county) | county<1000
+
+rename age_under35 under35_share
+la var under35_share "Share of mortgages from buyers under age 35, 2018-2021"
+
+maptile under35_share, geo(county2010) stateoutline(thin)
+maptile under35_share if metro==1, geo(county2010) mapif(metro==1) stateoutline(thin)
+
+save derived_data/MHDA_county_age, replace
+clear
+
+* Part 2: Monthly payment share
+
+use derived_data/MHDA_US_full
+
+collapse (p50) monthly_payment_share metro, by(county)
+
+maptile monthly_payment_share, geo(county2010) stateoutline(thin)
+maptile monthly_payment_share if metro==1, geo(county2010) mapif(metro==1) stateoutline(thin)
+
+save derived_data/MHDA_county_mps
+clear
+
+* Part 2a: Monthly payment share, by age
+
+use derived_data/MHDA_US_full
+
+drop if missing(age_under35)
+collapse (p50) monthly_payment_share metro, by(county age_under35)
+drop if missing(county) | county<1000
+
+maptile monthly_payment_share if age_under35==1, geo(county2010) stateoutline(thin)
+maptile monthly_payment_share if age_under35==0, geo(county2010) stateoutline(thin)
+
+maptile monthly_payment_share if metro==1 & age_under35==1, geo(county2010) mapif(metro==1) stateoutline(thin)
+maptile monthly_payment_share if metro==1 & age_under35==0, geo(county2010) mapif(metro==1) stateoutline(thin)
+
+gen mps_u35 = monthly_payment_share if age_under35==1
+bys county: egen mps_u35_mean = mean(mps_u35)
+gen mps_35plus = monthly_payment_share if age_under35==0
+bys county: egen mps_35plus_mean = mean(mps_35plus)
+
+gen monthly_payment_share_gap = mps_u35_mean-mps_35plus_mean
+
+*Note: if age_under35==1 used here only because there are two observations per county, both with same monthly_payment_share_gap
+maptile monthly_payment_share_gap if age_under35==1, geo(county2010) stateoutline(thin)
+maptile monthly_payment_share_gap if age_under35==1 & metro==1, geo(county2010) mapif(metro==1) stateoutline(thin)
+
+save derived_data/MHDA_county_mps_age
+clear
+
+** Part 3: Buyers' income to county median income
+
+use derived_data/MHDA_US_full
+
+collapse (p50) inc_buyer_to_county metro, by(county)
+
+maptile inc_buyer_to_county, geo(county2010) stateoutline(thin)
+maptile inc_buyer_to_county if metro==1, geo(county2010) mapif(metro==1) stateoutline(thin)
+
+save derived_data/MHDA_county_buyer_to_county, replace
+clear
+
+
+** Part 3a: u35 only
+
+use derived_data/MHDA_US_full
+keep if age_under35==1
+
+collapse (p50) inc_buyer_to_county metro, by(county)
+
+maptile inc_buyer_to_county, geo(county2010) stateoutline(thin)
+maptile inc_buyer_to_county if metro==1, geo(county2010) mapif(metro==1) stateoutline(thin)
+
+save derived_data/MHDA_county_buyer_to_county_u35, replace
+clear
+
+
+** Next, setting up for full county panel
+
+use derived_data/MHDA_county_mps_age
+keep county monthly_payment_share_gap
+duplicates drop
+save derived_data/MHDA_county_mps_gap
+clear
+
+use derived_data/MHDA_county_mps_age
+keep if age_under35==1
+keep county monthly_payment_share
+rename monthly_payment_share mps_u35
+la var mps_u35 "Monthly payment share, buyers under age 35"
+save derived_data/MHDA_county_mps_u35
+clear
+
+use derived_data/MHDA_county_mps_age
+keep if age_under35==0
+keep county monthly_payment_share
+rename monthly_payment_share mps_35plus
+la var mps_35plus "Monthly payment share, buyers age 35 and over"
+save derived_data/MHDA_county_mps_35plus
+clear
+
+* Going back to full dataset to collapse controls
+
+use derived_data/MHDA_US_full
+
+collapse (p50) property_value natam_scale natam_rank loan_term loan_amount interest_rate income inc_pc_mean inc_buyer_to_county WRLURI18 RUCC_2013 metro, by(county)
+
+save derived_data/MHDA_county_controls
+clear
+
+* Merging to create county panel with controls
+
+use derived_data/MHDA_county_age
+merge 1:1 county using derived_data/MHDA_county_mps, gen(_merge_mps)
+merge 1:1 county using derived_data/MHDA_county_mps_u35, gen(_merge_mps_u35)
+merge 1:1 county using derived_data/MHDA_county_mps_35plus, gen(_merge_mps_35plus)
+merge 1:1 county using derived_data/MHDA_county_mps_gap, gen(_merge_mps_gap)
+merge 1:1 county using derived_data/MHDA_county_controls, gen(_merge_controls)
+merge m:1 county using derived_data/dem_share2016, gen(_merge_dem_share2016)
+merge m:1 county using derived_data/dem_share2020, gen(_merge_dem_share2020)
+
+save derived_data/MHDA_county, replace
+
+maptile inc_buyer_to_county, geo(county2010) stateoutline(thin)
+
+
+** Alternatively, short panel
+
+clear
+use derived_data/MHDA_US_full
+collapse (p50) monthly_payment_share property_value natam_scale natam_rank loan_term loan_amount interest_rate income inc_pc_mean inc_buyer_to_county WRLURI18 RUCC_2013 metro, by(county year)
+drop if county <1000
+xtset county year
+sort county year
+
+* Change in the ratio of buyer income to county median income
+gen inc_buyer_to_county_change_raw = d.inc_buyer_to_county
+bys county: egen inc_buyer_to_county_change = mean(inc_buyer_to_county_change_raw)
+maptile inc_buyer_to_county_change if year==2021, geo(county2010) stateoutline(thin)
+
+* Change in monthly payment share
+gen mps_change_raw = d.monthly_payment_share
+bys county: egen mps_change = mean(mps_change_raw)
+maptile mps_change if year==2021, geo(county2010) stateoutline(thin)
+maptile mps_change if year==2021 & metro==1, geo(county2010) stateoutline(thin) mapif(metro==1)
+
+save derived_data/HMDA_county_year, replace
+
+
+* Share of buyers under 35
+
+clear
+use derived_data/MHDA_US_full
+collapse (mean) age_under35, by(county year)
+
+drop if missing(county) | county<1000
+
+sort county year
+xtset county year
+
+rename age_under35 under35_share
+la var under35_share "Share of mortgages from buyers under age 35"
+
+binscatter under35_share year, line(connect)
+
+save derived_data/MHDA_county_age_year, replace
+clear
+
+use derived_data/HMDA_county_year
+merge 1:1 county year using derived_data/MHDA_county_age_year, gen(_merge_u35_share)
+
+* Share of buyers under 45
+
+clear
+use derived_data/MHDA_US_full
+collapse (mean) age_under45, by(county year)
+
+drop if missing(county) | county<1000
+
+sort county year
+xtset county year
+
+rename age_under45 under45_share
+la var under45_share "Share of mortgages from buyers under age 45"
+
+binscatter under45_share year, line(connect)
+
+save derived_data/MHDA_county_age_u45_year, replace
+clear
+
+use derived_data/HMDA_county_year
+merge 1:1 county year using derived_data/MHDA_county_age_u45_year, gen(_merge_u45_share)
+
+* Quartiles of zoning restrions
+
+gen zoning_ind = 1 if WRLURI18>=.4878615 & metro==1
+replace zoning_ind = 2 if WRLURI18<.4878615  & WRLURI18>.0233176 & metro==1
+replace zoning_ind = 3 if WRLURI18<.0233176  & WRLURI18>-.5430015 & metro==1
+replace zoning_ind = 4 if WRLURI18<-.5430015  & metro==1
+maptile zoning_ind if year==2021, geo(county2010) mapif(metro==1) stateoutline(thin)
+bys county: egen zoning_ind_mean = mean(zoning_ind)
+
+la var zoning_ind_mean  "1: most restrictive; 4: least restrictive"
+la var  zoning_ind "1: most restrictive; 4: least restrictive"
+
+binscatter under35_share year, line(connect) by(zoning_ind_mean)
+binscatter monthly_payment_share year, line(connect) by(zoning_ind_mean)
+
+
+save derived_data/HMDA_county_year, replace
+
+
+* Note: need to add monthly payment share gap
+
+
+
+******************************
+*** Changes over 2018-2021 ***
+******************************
+
+replace under35_share = under35_share*100
+gen u35_share_2018 = under35_share if year==2018
+gen u35_share_2021 = under35_share if year==2021
+bys county: egen u35_share_2018_mean = mean(u35_share_2018)
+bys county: egen u35_share_2021_mean = mean(u35_share_2021)
+gen u35_share_change = u35_share_2021_mean - u35_share_2018_mean
+la var u35_share_change "Change in share of buyers under age 35, 2018-2021"
+
+sum u35_share_change
+binscatter under35_share year, by(metro) line(connect)
+bys county: egen u35_share_mean = mean(under35_share)
+maptile u35_share_mean if year==2021, geo(county2010) stateoutline(thin)
+maptile u35_share_change if year==2021, geo(county2010) stateoutline(thin)
+maptile u35_share_change if year==2021 & metro==1, geo(county2010) stateoutline(thin) mapif(metro==1)
+
+
+replace under45_share = under45_share*100
+gen u45_share_2018 = under45_share if year==2018
+gen u45_share_2021 = under45_share if year==2021
+bys county: egen u45_share_2018_mean = mean(u45_share_2018)
+bys county: egen u45_share_2021_mean = mean(u45_share_2021)
+gen u45_share_change = u45_share_2021_mean - u45_share_2018_mean
+la var u45_share_change "Change in share of buyers under age 45, 2018-2021"
+
+sum u45_share_change
+binscatter under45_share year, by(metro) line(connect)
+bys county: egen u45_share_mean = mean(under45_share)
+maptile u45_share_mean if year==2021, geo(county2010) stateoutline(thin)
+maptile u45_share_change if year==2021, geo(county2010) stateoutline(thin)
+maptile u45_share_change if year==2021 & metro==1, geo(county2010) stateoutline(thin) mapif(metro==1)
+
+
+replace property_value = property_value/1000
+la var property_value  "Property Value ($1000)"
+
+gen property_value_2018 = property_value if year==2018
+gen property_value_2021 = property_value if year==2021
+bys county: egen property_value_2018_mean = mean(property_value_2018)
+bys county: egen property_value_2021_mean = mean(property_value_2021)
+gen property_value_change = property_value_2021_mean - property_value_2018_mean
+la var property_value_change "Change in property value of new home purchases, 2018-2021"
+
+
+* Alternatively, annual changes for xtreg
+gen prop_change_raw = d.property_value
+gen prop_change_pct = 100*(prop_change_raw/l.property_value)
+bys county: egen prop_change_annual_pct_mean = mean(prop_change_pct)
+
+gen u35_change_raw = d.under35_share
+gen u35_change_annual_pct = 100*(u35_change_raw/l.under35_share)
+bys county: egen u35_share_change_annual_pct_mean = mean(u35_change_annual_pct)
+
+
+*******************
+*** Regressions ***
+*******************
+
+
+asdoc reg prop_change_annual_pct_mean u35_share_change_annual_pct_mean if year==2021, robust replace nest dec(3) save(HMDA1) add(Counties, All)
+asdoc reg prop_change_annual_pct_mean u35_share_change_annual_pct_mean if year == 2021 & metro==1, robust nest dec(3) save(HMDA1) add(Counties, Metro)
+asdoc reg prop_change_annual_pct_mean u35_share_change_annual_pct_mean property_value_2018_mean natam_scale inc_pc_mean if year == 2021, robust  nest dec(3) save(HMDA1) add(Counties, All)
+asdoc reg prop_change_annual_pct_mean u35_share_change_annual_pct_mean property_value_2018_mean natam_scale inc_pc_mean if year == 2021 & metro==1, robust  nest dec(3) save(HMDA1) add(Counties, Metro)
+
+asdoc xtreg property_value under35_share, fe robust replace nest dec(3) save(HMDA1a) add(Counties, All, Fixed Effects, County)
+asdoc xtreg property_value under35_share if metro==1, fe robust  nest dec(3) save(HMDA1a) add(Counties, Metro, Fixed Effects, County)
+
+asdoc reg u35_share_change property_value_2018_mean natam_scale inc_pc_mean if year == 2021, robust replace nest dec(3) save(HMDA2) add(Counties, All)
+asdoc reg u35_share_change property_value_2018_mean natam_scale inc_pc_mean if year == 2021 & metro==1, robust  nest dec(3) save(HMDA2) add(Counties, Metro)
+
+gen u35_share_change_ind =1 if u35_share_change>0
+replace u35_share_change_ind =0 if u35_share_change<=0
+
+
+gen u45_share_change_ind =1 if u45_share_change>0
+replace u45_share_change_ind =0 if u45_share_change<=0
+
+save derived_data/HMDA_county_year, replace
+
+
